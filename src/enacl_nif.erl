@@ -168,6 +168,7 @@ init() ->
               D -> D
           end,
     SoName = filename:join(Dir, atom_to_list(?MODULE)),
+    io:format("Loading ~p", SoName),
     erlang:load_nif(SoName, 0).
 
 crypto_generichash_BYTES() -> erlang:nif_error(nif_not_loaded).
