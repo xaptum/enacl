@@ -1039,10 +1039,10 @@ ERL_NIF_TERM enif_crypto_onetimeauth_verify(ErlNifEnv *env, int argc, ERL_NIF_TE
 static
 ERL_NIF_TERM enif_randombytes(ErlNifEnv *env, int argc, ERL_NIF_TERM const argv[])
 {
-	size_t req_size;
+	unsigned req_size;
 	ErlNifBinary result;
 
-	if ((argc != 1) || (!enif_get_uint64(env, argv[0], &req_size))) {
+	if ((argc != 1) || (!enif_get_uint(env, argv[0], &req_size))) {
 		return enif_make_badarg(env);
 	}
 
@@ -1053,6 +1053,48 @@ ERL_NIF_TERM enif_randombytes(ErlNifEnv *env, int argc, ERL_NIF_TERM const argv[
 	randombytes(result.data, result.size);
 
 	return enif_make_binary(env, &result);
+}
+
+
+static
+ERL_NIF_TERM enif_randomint(ErlNifEnv *env, int argc, ERL_NIF_TERM const argv[])
+{
+	uint32_t random_integer = randombytes_random();
+	return enif_make_uint(env, random_integer);
+}
+
+static
+ERL_NIF_TERM enif_randomint_uniform(ErlNifEnv *env, int argc, ERL_NIF_TERM const argv[])
+{
+	uint32_t upper_bound;
+
+	if ((argc != 1) || (!enif_get_uint(env, argv[0], &upper_bound))) {
+		return enif_make_badarg(env);
+	}
+
+	uint32_t random_integer = randombytes_uniform(upper_bound);
+
+	return enif_make_uint(env, random_integer);
+}
+
+static
+ERL_NIF_TERM enif_randomint_uniform_range(ErlNifEnv *env, int argc, ERL_NIF_TERM const argv[])
+{
+        uint32_t lower_bound, upper_bound;
+
+        if ((argc != 2) ||
+	    (!enif_get_uint(env, argv[0], &lower_bound)) ||
+	    (!enif_get_uint(env, argv[1], &upper_bound))) {
+	  return enif_make_badarg(env);
+        }
+
+	if( upper_bound < lower_bound ) {
+	  return enif_make_badarg(env);
+	}
+  
+	uint32_t random_integer = randombytes_uniform(upper_bound - lower_bound) + lower_bound;
+
+	return enif_make_uint(env, random_integer);
 }
 
 /* Key exchange */
@@ -1352,7 +1394,7 @@ ERL_NIF_TERM enif_crypto_generichash(ErlNifEnv *env, int argc, ERL_NIF_TERM cons
 
   size_t hashSize;
 
-    // Validate the arguments
+  // Validate the arguments
   if( (argc != 3) ||
       (!enif_get_uint64(env, argv[0], &hashSize)) ||
       (!enif_inspect_binary(env, argv[1], &message)) ||
@@ -1614,6 +1656,9 @@ static ErlNifFunc nif_funcs[] = {
 	{"crypto_sign_ed25519_SECRETKEYBYTES", 0, enif_crypto_sign_ed25519_SECRETKEYBYTES},
 
 	erl_nif_dirty_job_cpu_bound_macro("randombytes", 1, enif_randombytes),
+	erl_nif_dirty_job_cpu_bound_macro("randomint", 0, enif_randomint),
+	erl_nif_dirty_job_cpu_bound_macro("randomint", 1, enif_randomint_uniform),
+	erl_nif_dirty_job_cpu_bound_macro("randomint", 2, enif_randomint_uniform_range),
 
 	erl_nif_dirty_job_cpu_bound_macro("crypto_kx_keypair", 0, enif_crypto_kx_keypair),
 	erl_nif_dirty_job_cpu_bound_macro("crypto_kx_client_session_keys", 3, enif_crypto_kx_client_session_keys),

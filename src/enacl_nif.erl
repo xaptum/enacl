@@ -67,6 +67,13 @@
          crypto_stream_xor/3,
          crypto_stream_xor_b/3,
 
+         crypto_aead_chacha20poly1305_encrypt/4,
+         crypto_aead_chacha20poly1305_decrypt/4,
+         crypto_aead_chacha20poly1305_KEYBYTES/0,
+         crypto_aead_chacha20poly1305_NPUBBYTES/0,
+         crypto_aead_chacha20poly1305_ABYTES/0,
+         crypto_aead_chacha20poly1305_MESSAGEBYTES_MAX/0,
+
          crypto_auth_BYTES/0,
          crypto_auth_KEYBYTES/0,
 
@@ -91,7 +98,8 @@
 
 %% Curve25519
 -export([
-         crypto_curve25519_scalarmult/2
+         crypto_curve25519_scalarmult/2,
+         crypto_curve25519_scalarmult_base/1
         ]).
 
 %% Ed 25519
@@ -124,29 +132,31 @@
 
 %% Password Hashing - Argon2 Algorithm
 -export([
-	 crypto_pwhash/2,
-	 crypto_pwhash_str/1,
-	 crypto_pwhash_str_verify/2
-]).
+         crypto_pwhash/2,
+         crypto_pwhash_str/1,
+         crypto_pwhash_str_verify/2
+        ]).
 
 %% Generic hash
 -export([
-	 crypto_generichash_BYTES/0,
-	 crypto_generichash_BYTES_MIN/0,
-	 crypto_generichash_BYTES_MAX/0,
-	 crypto_generichash_KEYBYTES/0,
-	 crypto_generichash_KEYBYTES_MIN/0,
-	 crypto_generichash_KEYBYTES_MAX/0,
-
-	 crypto_generichash/3,
-	 crypto_generichash_init/2,
-	 crypto_generichash_update/3,
-	 crypto_generichash_final/2
-]).
+         crypto_generichash_BYTES/0,
+         crypto_generichash_BYTES_MIN/0,
+         crypto_generichash_BYTES_MAX/0,
+         crypto_generichash_KEYBYTES/0,
+         crypto_generichash_KEYBYTES_MIN/0,
+         crypto_generichash_KEYBYTES_MAX/0,
+         crypto_generichash/3,
+         crypto_generichash_init/2,
+         crypto_generichash_update/3,
+         crypto_generichash_final/2
+        ]).
 
 %% Access to the RNG
 -export([
-         randombytes/1
+         randombytes/1,
+	 randomint/0,
+	 randomint/1,
+	 randomint/2
         ]).
 
 %% Undocumented features :>
@@ -157,16 +167,30 @@
 -on_load(init/0).
 
 init() ->
-    Dir = case code:priv_dir(enacl) of
-              {error, bad_name} ->
-                  filename:join(
-                    filename:dirname(
-                      filename:dirname(
-                        code:which(?MODULE))), "priv");
-              D -> D
-          end,
-	SoName = filename:join(Dir, atom_to_list(?MODULE)),
-	erlang:load_nif(SoName, 0).
+  PrivDir = priv_dir(),
+  SoName = filename:join(PrivDir, atom_to_list(?MODULE)),
+  io:format("LOADING ENACL FROM ~p~n", [SoName]),
+  case erlang:load_nif(SoName, 0) of
+    ok ->
+      io:format("Successfully loaded NIFs from ~p~n", [SoName]);
+    {error, {reload, _ReloadMessage}} ->
+      ok;
+    {error, RealError} ->
+      io:format("Error loading NIFs from ~p: ~p~n", [SoName, RealError]),
+      {error, RealError}
+  end.
+
+priv_dir() ->
+  case code:priv_dir(enacl) of
+    {error, bad_name} ->
+      case filelib:is_dir(filename:join(["..", priv])) of
+        true ->
+          filename:join(["..", priv]);
+        _ -> "priv"
+      end;
+    Dir -> Dir
+  end.
+
 
 crypto_generichash_BYTES() -> erlang:nif_error(nif_not_loaded).
 crypto_generichash_BYTES_MIN() -> erlang:nif_error(nif_not_loaded).
@@ -180,8 +204,6 @@ crypto_generichash(_HashSize, _Message, _Key) -> erlang:nif_error(nif_not_loaded
 crypto_generichash_init(_HashSize, _Key) ->  erlang:nif_error(nif_not_loaded).
 crypto_generichash_update(_HashSize, _HashState, _Message) ->  erlang:nif_error(nif_not_loaded).
 crypto_generichash_final(_HashSize, _HashState) ->  erlang:nif_error(nif_not_loaded).
-    
-    
 
 crypto_pwhash(_Password, _Salt) -> erlang:nif_error(nif_not_loaded).
 crypto_pwhash_str(_Password) -> erlang:nif_error(nif_not_loaded).
@@ -243,6 +265,13 @@ crypto_stream_b(_Bytes, _Nonce, _Key) -> erlang:nif_error(nif_not_loaded).
 crypto_stream_xor(_M, _Nonce, _Key) -> erlang:nif_error(nif_not_loaded).
 crypto_stream_xor_b(_M, _Nonce, _Key) -> erlang:nif_error(nif_not_loaded).
 
+crypto_aead_chacha20poly1305_encrypt(_Key, _Nonce, _AD, _Message) -> erlang:nif_error(nif_not_loaded).
+crypto_aead_chacha20poly1305_decrypt(_Key, _Nonce, _AD, _Message) -> erlang:nif_error(nif_not_loaded).
+crypto_aead_chacha20poly1305_KEYBYTES()                           -> erlang:nif_error(nif_not_loaded).
+crypto_aead_chacha20poly1305_NPUBBYTES()                          -> erlang:nif_error(nif_not_loaded).
+crypto_aead_chacha20poly1305_ABYTES()                             -> erlang:nif_error(nif_not_loaded).
+crypto_aead_chacha20poly1305_MESSAGEBYTES_MAX()                   -> erlang:nif_error(nif_not_loaded).
+
 crypto_auth_BYTES() -> erlang:nif_error(nif_not_loaded).
 crypto_auth_KEYBYTES() -> erlang:nif_error(nif_not_loaded).
 crypto_auth(_Msg, _Key) -> erlang:nif_error(nif_not_loaded).
@@ -262,6 +291,7 @@ crypto_onetimeauth_verify(_Authenticator, _Msg, _Key) -> erlang:nif_error(nif_no
 crypto_onetimeauth_verify_b(_Authenticator, _Msg, _Key) -> erlang:nif_error(nif_not_loaded).
 
 crypto_curve25519_scalarmult(_Secret, _BasePoint) -> erlang:nif_error(nif_not_loaded).
+crypto_curve25519_scalarmult_base(_Secret) -> erlang:nif_error(nif_not_loaded).
 
 crypto_sign_ed25519_keypair() -> erlang:nif_error(nif_not_loaded).
 crypto_sign_ed25519_public_to_curve25519(_PublicKey) -> erlang:nif_error(nif_not_loaded).
@@ -283,5 +313,8 @@ crypto_kx_PUBLICKEYBYTES() -> erlang:nif_error(nif_not_loaded).
 crypto_kx_SECRETKEYBYTES() -> erlang:nif_error(nif_not_loaded).
 
 randombytes(_RequestedSize) -> erlang:nif_error(nif_not_loaded).
-
+randomint() -> erlang:nif_error(nif_not_loaded).
+randomint(_UpperBound) -> erlang:nif_error(nif_not_loaded).
+randomint(_LowerBound, _UpperBound) -> erlang:nif_error(nif_not_loaded).
+    
 scramble_block_16(_Block, _Key) -> erlang:nif_error(nif_not_loaded).
